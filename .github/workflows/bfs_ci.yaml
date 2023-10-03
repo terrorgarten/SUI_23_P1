@@ -1,0 +1,22 @@
+name: BFS CI
+
+on:
+  push:
+    branches: [ "bfs" ]
+  pull_request:
+    branches: [ "bfs" ]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: repo checkout
+      uses: actions/checkout@v3
+    - name: install make for sure
+      run: sudo apt-get install make
+    - name: run make
+      run: make
+    - name: run bfs
+      run: ./fc-sui 3 6545646 --solver bfs --easy-mode 10
