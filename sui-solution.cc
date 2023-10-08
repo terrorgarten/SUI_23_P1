@@ -3,6 +3,14 @@
 #include <vector>
 #include <queue>
 #include <set>
+#include <list>
+
+struct StateWithCost{
+    SearchState state;
+    int cost;
+    StateWithCost *father;
+    const SearchAction action; // action that led to this state
+};
 
 
 // ----------------------------- CUSTOM UTILS ----------------------------
@@ -102,5 +110,60 @@ double StudentHeuristic::distanceLowerBound(const GameState &state) const {
 
 std::vector <SearchAction> AStarSearch::solve(const SearchState &init_state) {
     // TODO
-    UNUSED(init_state), throw NotImplementedException();
+    
+    std::list<StateWithCost *> states {(new StateWithCost {init_state, 0, nullptr, init_state.actions()[0]})};
+    std::vector<StateWithCost *> trash{}; // setting popped states aside for clean up later
+    StateWithCost * victory = nullptr;
+
+
+    while(!states.empty()){
+        StateWithCost * father = states.front();
+        states.pop_front();
+        trash.push_back(father);
+        if (father->state.isFinal()) {
+            victory = father;
+            break;
+        }
+
+        std::vector <SearchAction> actions = father->state.actions();
+        for (const SearchAction &action: actions) {
+            StateWithCost * new_state_with_cost = new StateWithCost{action.execute(father->state), 1, father, action};
+            new_state_with_cost->cost = compute_heuristic(new_state_with_cost->state, *heuristic_);
+            
+            // in case list is empty, just insert
+            if(states.empty()){
+                states.push_front(new_state_with_cost);
+                continue;
+            }
+
+            
+            // find the first state with a bigger cost than the new one
+            std::list<StateWithCost *>::iterator SWC_iterator = states.begin();
+            for (;(*SWC_iterator)->cost < new_state_with_cost->cost; SWC_iterator++);
+            
+            // add the new state just before the found one 
+            states.insert(SWC_iterator, new_state_with_cost );
+
+            // entering each iteration, states should be arranged in ascending order 
+            
+            
+        }
+
+    }
+
+    // reconstruct the victorious path
+    std::vector <SearchAction> return_vec{};
+    if (victory!=nullptr){
+        for(StateWithCost * node = victory; node->father!=nullptr; node=node->father)
+           return_vec.insert(return_vec.begin(), (node->action)); 
+    }
+
+
+    // clean up
+    for(StateWithCost * s: trash)
+        delete s;
+    for(StateWithCost * s: states)
+        delete s;
+    init_state.actions();
+    return return_vec;
 }
