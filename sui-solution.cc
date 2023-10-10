@@ -108,15 +108,25 @@ double StudentHeuristic::distanceLowerBound(const GameState &state) const {
     UNUSED(state), throw NotImplementedException();
 }
 
+std::string actions_to_str(std::vector<SearchAction> actions){
+    std::string return_val = "";
+
+    for(SearchAction action: actions){
+       return_val = return_val + std::to_string(action.to().id) +  std::to_string(action.from().id);
+    }
+    return return_val;
+}
+
 std::vector <SearchAction> AStarSearch::solve(const SearchState &init_state) {
     // TODO
-    const int CYCLIC_CHECK_SIZE = 10;
+    const int CYCLIC_CHECK_SIZE = 100;
+    std::cout << "f" <<std::endl;
 
     std::vector <SearchAction> return_vec{};
     std::list<StateWithCost *> states {(new StateWithCost {init_state, 0, nullptr, init_state.actions()[0]})};
     std::vector<StateWithCost *> trash{}; // setting popped states aside for clean up later
     StateWithCost * victory = nullptr;
-    std::list<SearchState> cyclic_check = {};
+    std::list<std::string> cyclic_check = {};
 
     int i = 0;
     while(!states.empty()){
@@ -130,19 +140,25 @@ std::vector <SearchAction> AStarSearch::solve(const SearchState &init_state) {
             break;
         }
 
+        std::vector <SearchAction> actions = father->state.actions();
+        std::string actions_str = actions_to_str(actions);
+        bool do_continue = 0;
         for (auto cyclic_test: cyclic_check)
-            if(father->state==cyclic_test)
-                continue;
+            if(actions_str.compare(cyclic_test) == 0){ 
+                do_continue = 1;
+                break;
+            }
+        if(do_continue) continue;
         
-        cyclic_check.push_front(father->state);
-        if(cyclic_check.size()>CYCLIC_CHECK_SIZE)
-            cyclic_check.pop_back();
+        cyclic_check.push_front(actions_str);
+        //if(cyclic_check.size()>CYCLIC_CHECK_SIZE)
+        //    cyclic_check.pop_back();
 
 
 
         // expand
-        std::vector <SearchAction> actions = father->state.actions();
         for (const SearchAction &action: actions) {
+            
             StateWithCost * new_state_with_cost = new StateWithCost{action.execute(father->state), 1, father, action};
             new_state_with_cost->cost = compute_heuristic(new_state_with_cost->state, *heuristic_);
             
