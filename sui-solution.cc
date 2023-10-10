@@ -110,13 +110,18 @@ double StudentHeuristic::distanceLowerBound(const GameState &state) const {
 
 std::vector <SearchAction> AStarSearch::solve(const SearchState &init_state) {
     // TODO
-    
+    const int CYCLIC_CHECK_SIZE = 10;
+
+    std::vector <SearchAction> return_vec{};
     std::list<StateWithCost *> states {(new StateWithCost {init_state, 0, nullptr, init_state.actions()[0]})};
     std::vector<StateWithCost *> trash{}; // setting popped states aside for clean up later
     StateWithCost * victory = nullptr;
+    std::list<SearchState> cyclic_check = {};
 
-
+    int i = 0;
     while(!states.empty()){
+        // queue management
+        if(i++>10000) goto clean_up;
         StateWithCost * father = states.front();
         states.pop_front();
         trash.push_back(father);
@@ -125,25 +130,35 @@ std::vector <SearchAction> AStarSearch::solve(const SearchState &init_state) {
             break;
         }
 
+        for (auto cyclic_test: cyclic_check)
+            if(father->state==cyclic_test)
+                continue;
+        
+        cyclic_check.push_front(father->state);
+        if(cyclic_check.size()>CYCLIC_CHECK_SIZE)
+            cyclic_check.pop_back();
+
+
+
+        // expand
         std::vector <SearchAction> actions = father->state.actions();
         for (const SearchAction &action: actions) {
             StateWithCost * new_state_with_cost = new StateWithCost{action.execute(father->state), 1, father, action};
             new_state_with_cost->cost = compute_heuristic(new_state_with_cost->state, *heuristic_);
             
-            // in case list is empty, just insert
-            if(states.empty()){
-                states.push_front(new_state_with_cost);
-                continue;
-            }
-
             
             // find the first state with a bigger cost than the new one
             std::list<StateWithCost *>::iterator SWC_iterator = states.begin();
-            for (;(*SWC_iterator)->cost < new_state_with_cost->cost; SWC_iterator++);
+            long unsigned int i = 0;
+            for (;i<states.size() && (*SWC_iterator)->cost < new_state_with_cost->cost ; SWC_iterator++)
+                ++i;
             
             // add the new state just before the found one 
-            states.insert(SWC_iterator, new_state_with_cost );
-
+            if(i!=states.size())
+                states.insert(SWC_iterator, new_state_with_cost );
+            else
+                states.push_front(new_state_with_cost);
+            
             // entering each iteration, states should be arranged in ascending order 
             
             
@@ -152,18 +167,16 @@ std::vector <SearchAction> AStarSearch::solve(const SearchState &init_state) {
     }
 
     // reconstruct the victorious path
-    std::vector <SearchAction> return_vec{};
     if (victory!=nullptr){
         for(StateWithCost * node = victory; node->father!=nullptr; node=node->father)
            return_vec.insert(return_vec.begin(), (node->action)); 
     }
 
 
-    // clean up
+clean_up:
     for(StateWithCost * s: trash)
         delete s;
     for(StateWithCost * s: states)
         delete s;
-    init_state.actions();
     return return_vec;
 }
