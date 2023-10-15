@@ -9,6 +9,8 @@
 // ----------------------------- CUSTOM UTILS ----------------------------
 
 #define UNUSED(x) (void)(x) // ignore unused variable warnings
+#define DEBUG 0
+#define D_PRINT(x) if (DEBUG) std::cout << x << std::endl;
 
 /**
  * @brief Not implemented exception for missing implementations of search strategies.
@@ -29,6 +31,9 @@ bool operator==(const SearchState &a, const SearchState &b) {
     return a.state_ == b.state_;
 }
 
+
+// typedef std::pair <SearchState, SearchAction> SearchNode;
+
 // ------------------------- SOLVER IMPLEMENTATIONS ------------------------------
 
 /**
@@ -37,83 +42,71 @@ bool operator==(const SearchState &a, const SearchState &b) {
  * @return std::vector<SearchAction> the action path to the solution state, empty vector if no solution found.
  */
 std::vector <SearchAction> BreadthFirstSearch::solve(const SearchState &init_state) {
-    std::cout << "Running BFS.." << std::endl;
-    std::vector <SearchAction> solution;
-    std::queue <SearchState> queue;
-    std::set <SearchState> visited;
-    bool solution_found = false;
 
-    queue.push(init_state);
-
-    while (!queue.empty()) {
-        //if(this->mem_limit_ >= ) TODO porvnoat jestli se neblížím limitu a skončit jako fail
-        SearchState working_state(queue.front());
-        visited.insert(working_state);
-        queue.pop();
-        std::cout << "Working state looped: "<< std::endl << working_state << "\t Queue size: " << queue.size() << "\tVisited size:" << visited.size() << "\tAvailable actions: " << working_state.actions().size() << std::endl;
-
-        // check if current state is final
-        if (working_state.isFinal()) {
-            solution_found = true;
-            break;
-        }
-
-        auto visited_ctr = 0;
-        auto pushed_ctr = 0;
-
-
-        for (const SearchAction action : working_state.actions()) {
-            // execute all actions
-            SearchState new_state(action.execute(working_state));
-
-            if (visited.find(new_state) == visited.end()) {
-                visited.insert(new_state);
-                queue.push(new_state);
-                pushed_ctr++;
-            } else {
-                visited_ctr++;
-            }
-        }
-        assert(size_t(visited_ctr + pushed_ctr) == working_state.actions().size());
-        std::cout << "Visited: " << visited_ctr << " \tPushed: " << pushed_ctr << std::endl;
-
+    // if the input node is final, return it.
+    if (init_state.isFinal()) {
+        return std::vector<SearchAction>();
     }
 
+    // declare the frontier and add the first node to it
+    std::queue <SearchState> frontier;
+    frontier.push(init_state);
+    // declare the explored set
+    std::set <SearchState> explored;
+    // declare the solution reference
+    SearchState solutionState = init_state;
 
-//    if (solution_found){
-//        SearchState current_state(queue.back());
-//        while(!(current_state == init_state)){
-//            // find action that led to current state
-//            for(const SearchAction action : current_state.actions()) {
-//                auto new_state(action.execute(current_state));
-//                if (new_state == current_state){
-//                    solution.push_back(action);
-//                    current_state = new_state; // FIXME
-//                    break;
-//                }
-//            }
-//        }
-//    }
+    while (!frontier.empty()) {
 
-    // TODO zatím nevrací cestu akcí, jen vytiskne že našel řešení
-    std::cout << "BFS finished: " << solution_found << " Visited size: "<< visited.size() << " Q size: " << queue.size() <<std::endl;
-    print(solution)
-    return solution;
+        // get the next node to explore and remove it from the frontier
+        SearchState workingState(frontier.front());
+        frontier.pop();
+        // add the node to the explored set
+        explored.insert(workingState);
 
+
+        for (SearchAction nextAction: workingState.actions()) {
+
+            SearchState child(nextAction.execute(workingState));
+
+            // check for self-loops
+            if (workingState == child) { // TODO check if this slows up too much
+                continue;
+            }
+
+            if (explored.find(workingState) == explored.end() || frontier.find(workingState) == frontier.end()) {
+                // if the child is final, return it
+                if (child.isFinal()) {
+                    solutionState = child;
+                    break;
+                }
+                // add the child and its parent to the frontier TODO optimize for pointer
+                frontier.push(child);
+            }
+        }
+    }
+
+    if (solutionState == init_state) {
+        return std::vector<SearchAction>();
+    } else {
+        // TODO return the path to the solution
+        std::cout << "naslo se!" << std::endl;
+    }
 }
 
 
-std::vector <SearchAction> DepthFirstSearch::solve(const SearchState &init_state) {
-    // TODO
-    UNUSED(init_state), throw NotImplementedException();
-}
 
-double StudentHeuristic::distanceLowerBound(const GameState &state) const {
-    // TODO
-    UNUSED(state), throw NotImplementedException();
-}
+    std::vector <SearchAction> DepthFirstSearch::solve(const SearchState &init_state) {
+        // TODO
+        UNUSED(init_state), throw NotImplementedException();
+    }
 
-std::vector <SearchAction> AStarSearch::solve(const SearchState &init_state) {
-    // TODO
-    UNUSED(init_state), throw NotImplementedException();
-}
+    double StudentHeuristic::distanceLowerBound(const GameState &state) const {
+        // TODO
+        UNUSED(state), throw NotImplementedException();
+    }
+
+    std::vector <SearchAction> AStarSearch::solve(const SearchState &init_state) {
+        // TODO
+        UNUSED(init_state), throw NotImplementedException();
+    }
