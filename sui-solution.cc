@@ -3,7 +3,8 @@
 #include <vector>
 #include <queue>
 #include <set>
-
+#include <cassert>
+#include "mem_watch.h"
 
 // ----------------------------- CUSTOM UTILS ----------------------------
 
@@ -43,10 +44,13 @@ std::vector <SearchAction> BreadthFirstSearch::solve(const SearchState &init_sta
     bool solution_found = false;
 
     queue.push(init_state);
+
     while (!queue.empty()) {
+        //if(this->mem_limit_ >= ) TODO porvnoat jestli se neblížím limitu a skončit jako fail
         SearchState working_state(queue.front());
+        visited.insert(working_state);
         queue.pop();
-        std::cout << "Working state looped: queue size: " << queue.size() << std::endl;
+        std::cout << "Working state looped: "<< std::endl << working_state << "\t Queue size: " << queue.size() << "\tVisited size:" << visited.size() << "\tAvailable actions: " << working_state.actions().size() << std::endl;
 
         // check if current state is final
         if (working_state.isFinal()) {
@@ -54,17 +58,25 @@ std::vector <SearchAction> BreadthFirstSearch::solve(const SearchState &init_sta
             break;
         }
 
-        for (const SearchAction &action: working_state.actions()) {
+        auto visited_ctr = 0;
+        auto pushed_ctr = 0;
+
+
+        for (const SearchAction action : working_state.actions()) {
             // execute all actions
             SearchState new_state(action.execute(working_state));
 
             if (visited.find(new_state) == visited.end()) {
                 visited.insert(new_state);
                 queue.push(new_state);
+                pushed_ctr++;
             } else {
-                std::cout << "State already visited" << std::endl;
+                visited_ctr++;
             }
         }
+        assert(size_t(visited_ctr + pushed_ctr) == working_state.actions().size());
+        std::cout << "Visited: " << visited_ctr << " \tPushed: " << pushed_ctr << std::endl;
+
     }
 
 
@@ -84,7 +96,8 @@ std::vector <SearchAction> BreadthFirstSearch::solve(const SearchState &init_sta
 //    }
 
     // TODO zatím nevrací cestu akcí, jen vytiskne že našel řešení
-    std::cout << "BFS finished: " << solution_found << std::endl;
+    std::cout << "BFS finished: " << solution_found << " Visited size: "<< visited.size() << " Q size: " << queue.size() <<std::endl;
+    print(solution)
     return solution;
 
 }
