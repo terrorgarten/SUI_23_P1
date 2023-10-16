@@ -2,15 +2,25 @@
 #include <iostream>
 #include <vector>
 #include <queue>
+#include <unordered_set>
 #include <set>
 #include <cassert>
 #include "mem_watch.h"
+#include "memusage.h"
+#include <algorithm>
+
+using namespace std;
 
 // ----------------------------- CUSTOM UTILS ----------------------------
 
 #define UNUSED(x) (void)(x) // ignore unused variable warnings
 #define DEBUG 0
 #define D_PRINT(x) if (DEBUG) std::cout << x << std::endl;
+
+vector <SearchAction> reconstructPath(SearchState init_state,
+                                      SearchState final_state,
+                                      map <shared_ptr<SearchState>, shared_ptr<SearchAction>> *sourceAction);
+
 
 /**
  * @brief Not implemented exception for missing implementations of search strategies.
@@ -32,7 +42,19 @@ bool operator==(const SearchState &a, const SearchState &b) {
 }
 
 
-// typedef std::pair <SearchState, SearchAction> SearchNode;
+typedef struct StatePair {
+    SearchState state;
+    SearchAction action;
+
+    bool operator<(const StatePair &other) const {
+        return state < other.state;
+    }
+
+} StatePair_t;
+
+
+
+//typedef std::pair <SearchState, SearchAction> SearchNode;
 
 // ------------------------- SOLVER IMPLEMENTATIONS ------------------------------
 
@@ -41,72 +63,67 @@ bool operator==(const SearchState &a, const SearchState &b) {
  * @param init_state start state
  * @return std::vector<SearchAction> the action path to the solution state, empty vector if no solution found.
  */
+
+
+
 std::vector <SearchAction> BreadthFirstSearch::solve(const SearchState &init_state) {
 
-    // if the input node is final, return it.
-    if (init_state.isFinal()) {
-        return std::vector<SearchAction>();
-    }
+    queue <shared_ptr<SearchState>> queue;
+    unordered_set <shared_ptr<SearchState>> visited;
+    map <shared_ptr<SearchState>, shared_ptr<SearchState>> sourceAction;
 
-    // declare the frontier and add the first node to it
-    std::queue <SearchState> frontier;
-    frontier.push(init_state);
-    // declare the explored set
-    std::set <SearchState> explored;
-    // declare the solution reference
-    SearchState solutionState = init_state;
+    queue.push(make_shared<SearchState>(init_state));
+    visited.insert(make_shared<SearchState>(init_state));
 
-    while (!frontier.empty()) {
+    while (!queue.empty()) {
+        shared_ptr<SearchState> current_state = queue.front();
+        queue.pop();
 
-        // get the next node to explore and remove it from the frontier
-        SearchState workingState(frontier.front());
-        frontier.pop();
-        // add the node to the explored set
-        explored.insert(workingState);
+        if (current_state->isFinal()) {
+            cout << "Found solution!" << endl;
+            return vector<SearchAction>();
+        }
 
-
-        for (SearchAction nextAction: workingState.actions()) {
-
-            SearchState child(nextAction.execute(workingState));
-
-            // check for self-loops
-            if (workingState == child) { // TODO check if this slows up too much
-                continue;
-            }
-
-            if (explored.find(workingState) == explored.end() || frontier.find(workingState) == frontier.end()) {
-                // if the child is final, return it
-                if (child.isFinal()) {
-                    solutionState = child;
-                    break;
-                }
-                // add the child and its parent to the frontier TODO optimize for pointer
-                frontier.push(child);
+        for (SearchAction action : current_state->actions()) {
+            shared_ptr<SearchState> new_state = make_shared<SearchState>(action.execute(*current_state));
+            if (visited.find(new_state) == visited.end()) {
+                visited.insert(new_state);
+                sourceAction[new_state] = current_state;
+                queue.push(new_state);
             }
         }
-    }
-
-    if (solutionState == init_state) {
-        return std::vector<SearchAction>();
-    } else {
-        // TODO return the path to the solution
-        std::cout << "naslo se!" << std::endl;
+        cout << getCurrentRSS() << endl;
     }
 }
 
 
 
-    std::vector <SearchAction> DepthFirstSearch::solve(const SearchState &init_state) {
-        // TODO
-        UNUSED(init_state), throw NotImplementedException();
-    }
 
-    double StudentHeuristic::distanceLowerBound(const GameState &state) const {
-        // TODO
-        UNUSED(state), throw NotImplementedException();
-    }
+vector <SearchAction> reconstructPath(SearchState init_state,
+                                      SearchState final_state,
+                                      map <shared_ptr<SearchState>, shared_ptr<SearchAction>> *sourceAction) {
+    return vector<SearchAction>();
+//    vector <SearchAction> path;
+//    SearchState current_state = final_state;
+//    while (current_state != init_state) {
+//        SearchAction action = *(sourceAction[current_state]);
+//        path.push_back(action);
+//        current_state = action.from();
+//    }
+}
 
-    std::vector <SearchAction> AStarSearch::solve(const SearchState &init_state) {
-        // TODO
-        UNUSED(init_state), throw NotImplementedException();
-    }
+
+std::vector <SearchAction> DepthFirstSearch::solve(const SearchState &init_state) {
+    // TODO
+    UNUSED(init_state), throw NotImplementedException();
+}
+
+double StudentHeuristic::distanceLowerBound(const GameState &state) const {
+    // TODO
+    UNUSED(state), throw NotImplementedException();
+}
+
+std::vector <SearchAction> AStarSearch::solve(const SearchState &init_state) {
+    // TODO
+    UNUSED(init_state), throw NotImplementedException();
+}
