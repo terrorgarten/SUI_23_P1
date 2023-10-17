@@ -8,8 +8,12 @@
 #include "mem_watch.h"
 #include "memusage.h"
 #include <algorithm>
+#include <stack>
 
 using namespace std;
+using StatePointer = shared_ptr<SearchState>;
+
+
 
 // ----------------------------- CUSTOM UTILS ----------------------------
 
@@ -43,16 +47,14 @@ vector <SearchAction> reconstructPath(shared_ptr <SearchState> init_state,
 
 // ----------------------------- STRUCTURES ----------------------------
 
-/**
- * @brief Compare two shared pointers to SearchState objects.
- * @details This is needed for the set of visited states in BFS.
- */
-struct SearchStateSharedPtrCompare {
-    bool operator()(const std::shared_ptr <SearchState> &a, const std::shared_ptr <SearchState> &b) const {
-        return *a < *b;
-    }
-};
+struct DLSState {
+    const StatePointer state;
+    const StatePointer parent;
+    const short depth;
 
+    DLSState(StatePointer state, StatePointer parent, int depth) :
+            state(state), parent(parent), depth(depth) {}
+};
 
 
 // ----------------------------- OPERATORS ----------------------------
@@ -111,7 +113,7 @@ std::vector <SearchAction> BreadthFirstSearch::solve(const SearchState &init_sta
                                                    << " bytes.");
 
     queue <shared_ptr<SearchState>> queue;
-    set <shared_ptr<SearchState>, SearchStateSharedPtrCompare> visited;
+    set <shared_ptr<SearchState>> visited;
     map <shared_ptr<SearchState>, shared_ptr<SearchState>> sourceActionMap;
 
     shared_ptr <SearchState> init_state_shared_ptr = make_shared<SearchState>(init_state);
@@ -132,11 +134,14 @@ std::vector <SearchAction> BreadthFirstSearch::solve(const SearchState &init_sta
                 int v_size = sizeof(visited) + visited.size() * sizeof(visited.begin());
                 int s_size = sizeof(sourceActionMap) + (sourceActionMap.size() * (sizeof(sourceActionMap.begin()) * 2));
                 S_PRINT("BFS: Found solution using lookahead!" << endl
-                                                               << "Total memory used: " << getCurrentRSS() << " bytes." << endl
+                                                               << "Total memory used: " << getCurrentRSS() << " bytes."
+                                                               << endl
                                                                << "Queue: " << q_size << " bytes." << endl
-                                                                << "Visited: " << v_size << " bytes." << endl
-                                                                << "SourceActionMap: " << s_size << " bytes." << endl
-                                                                << "Missing: " << getCurrentRSS() - (q_size + v_size + s_size) << " bytes." << endl)
+                                                               << "Visited: " << v_size << " bytes." << endl
+                                                               << "SourceActionMap: " << s_size << " bytes." << endl
+                                                               << "Missing: "
+                                                               << getCurrentRSS() - (q_size + v_size + s_size)
+                                                               << " bytes." << endl)
                 sourceActionMap[new_state] = current_state;
                 return reconstructPath(init_state_shared_ptr, new_state, &sourceActionMap);
             }
@@ -205,7 +210,50 @@ vector <SearchAction> reconstructPath(shared_ptr <SearchState> init_state,
 
 std::vector <SearchAction> DepthFirstSearch::solve(const SearchState &init_state) {
 
+    stack <shared_ptr<DLSState>> stack;
+    map <StatePointer, StatePointer> sourceActionMap;
+    shared_ptr <DLSState> current_dls_state;
+
+    const StatePointer init_state_ptr = make_shared<SearchState>(init_state);
+    stack.push(make_shared<DLSState>(DLSState(init_state_ptr, init_state_ptr, 0)));
+
+    while (!stack.empty()) {
+
+        current_dls_state = stack.top();
+        sourceActionMap[current_dls_state->state] = current_dls_state->parent;
+        stack.pop();
+
+        if (current_dls_state->depth > depth_limit_) {
+
+            continue;
+
+        } else {
+
+            for (const SearchAction action: current_dls_state->state->actions()) {
+
+                StatePointer new_state = make_shared<SearchState>(action.execute(*current_dls_state->state));
+
+                if (new_state->isFinal()) {
+
+                    D_PRINT("DLS: Found solution using lookahead!");
+                    sourceActionMap[new_state] = current_dls_state->state;
+                    return reconstructPath(init_state_ptr, new_state, &sourceActionMap);
+
+                } else {
+
+                    stack.push(make_shared<DLSState>(DLSState(new_state, current_dls_state->state,
+                                                              current_dls_state->depth + 1)));
+                }
+            }
+        }
+        if (getCurrentRSS() > mem_limit_ - BFS_MEM_MARGIN) {
+            D_PRINT("BFS: Memory limit reached, aborting search!")
+            return vector<SearchAction>();
+        }
+    }
+    return vector<SearchAction>();
 }
+
 
 double StudentHeuristic::distanceLowerBound(const GameState &state) const {
     // TODO
