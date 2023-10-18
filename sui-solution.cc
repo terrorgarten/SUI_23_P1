@@ -4,6 +4,7 @@
 #include <queue>
 #include <set>
 #include <list>
+#include "memusage.h"
 
 struct StateWithCost{
     SearchState state;
@@ -119,8 +120,9 @@ std::string actions_to_str(std::vector<SearchAction> actions){
 
 std::vector <SearchAction> AStarSearch::solve(const SearchState &init_state) {
     // TODO
-    const int CYCLIC_CHECK_SIZE = 100;
-    std::cout << "f" <<std::endl;
+    const int CYCLIC_CHECK_SIZE = 50000;
+    int EXPAND_COUNT_LIMIT = 10000;
+    long unsigned int QUEUE_LIMIT = 500;
 
     std::vector <SearchAction> return_vec{};
     std::list<StateWithCost *> states {(new StateWithCost {init_state, 0, nullptr, init_state.actions()[0]})};
@@ -130,8 +132,12 @@ std::vector <SearchAction> AStarSearch::solve(const SearchState &init_state) {
 
     int i = 0;
     while(!states.empty()){
+        //std::cout << getCurrentRSS() << " " << mem_limit_ << std::endl;
+        if (getCurrentRSS() > mem_limit_ - 2048) {
+            return std::vector<SearchAction>();
+        }
         // queue management
-        if(i++>10000) goto clean_up;
+        if(i++>EXPAND_COUNT_LIMIT) goto clean_up;
         StateWithCost * father = states.front();
         states.pop_front();
         trash.push_back(father);
@@ -151,8 +157,8 @@ std::vector <SearchAction> AStarSearch::solve(const SearchState &init_state) {
         if(do_continue) continue;
         
         cyclic_check.push_front(actions_str);
-        //if(cyclic_check.size()>CYCLIC_CHECK_SIZE)
-        //    cyclic_check.pop_back();
+        if(cyclic_check.size()>CYCLIC_CHECK_SIZE)
+            cyclic_check.pop_back();
 
 
 
@@ -166,8 +172,18 @@ std::vector <SearchAction> AStarSearch::solve(const SearchState &init_state) {
             // find the first state with a bigger cost than the new one
             std::list<StateWithCost *>::iterator SWC_iterator = states.begin();
             long unsigned int i = 0;
-            for (;i<states.size() && (*SWC_iterator)->cost < new_state_with_cost->cost ; SWC_iterator++)
+            for (;i<states.size() && (*SWC_iterator)->cost < new_state_with_cost->cost ; SWC_iterator++){
                 ++i;
+                if(i > QUEUE_LIMIT){
+                    delete new_state_with_cost;
+                    break;
+                }
+            }
+
+            if(states.size() > QUEUE_LIMIT){
+                delete states.back();
+                states.pop_back();
+            }
             
             // add the new state just before the found one 
             if(i!=states.size())
