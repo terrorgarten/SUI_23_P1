@@ -5,11 +5,20 @@
 #include "memusage.h"
 #include <algorithm>
 #include <stack>
+#include <list>
+
 
 
 using namespace std; // FIXME possible - bad practice, but saves a lot of typing
 // shared pointer to the SearchState object
 using StatePointer = shared_ptr<SearchState>;
+
+struct StateWithCost{
+    SearchState state;
+    int cost;
+    StateWithCost *father;
+    const SearchAction action; // action that led to this state
+};
 
 
 
@@ -232,9 +241,93 @@ double StudentHeuristic::distanceLowerBound(const GameState &state) const {
     UNUSED(state), throw NotImplementedException();
 }
 
+std::string actions_to_str(std::vector<SearchAction> actions){
+    std::string return_val = "";
+
+    for(SearchAction action: actions){
+       return_val = return_val + std::to_string(action.to().id) +  std::to_string(action.from().id);
+    }
+    return return_val;
+}
+
 std::vector <SearchAction> AStarSearch::solve(const SearchState &init_state) {
     // TODO
-    UNUSED(init_state), throw NotImplementedException();
+    const int CYCLIC_CHECK_SIZE = 100;
+    std::cout << "f" <<std::endl;
+
+    std::vector <SearchAction> return_vec{};
+    std::list<StateWithCost *> states {(new StateWithCost {init_state, 0, nullptr, init_state.actions()[0]})};
+    std::vector<StateWithCost *> trash{}; // setting popped states aside for clean up later
+    StateWithCost * victory = nullptr;
+    std::list<std::string> cyclic_check = {};
+
+    int i = 0;
+    while(!states.empty()){
+        // queue management
+        if(i++>10000) goto clean_up;
+        StateWithCost * father = states.front();
+        states.pop_front();
+        trash.push_back(father);
+        if (father->state.isFinal()) {
+            victory = father;
+            break;
+        }
+
+        std::vector <SearchAction> actions = father->state.actions();
+        std::string actions_str = actions_to_str(actions);
+        bool do_continue = 0;
+        for (auto cyclic_test: cyclic_check)
+            if(actions_str.compare(cyclic_test) == 0){
+                do_continue = 1;
+                break;
+            }
+        if(do_continue) continue;
+
+        cyclic_check.push_front(actions_str);
+        //if(cyclic_check.size()>CYCLIC_CHECK_SIZE)
+        //    cyclic_check.pop_back();
+
+
+
+        // expand
+        for (const SearchAction &action: actions) {
+
+            StateWithCost * new_state_with_cost = new StateWithCost{action.execute(father->state), 1, father, action};
+            new_state_with_cost->cost = compute_heuristic(new_state_with_cost->state, *heuristic_);
+
+
+            // find the first state with a bigger cost than the new one
+            std::list<StateWithCost *>::iterator SWC_iterator = states.begin();
+            long unsigned int i = 0;
+            for (;i<states.size() && (*SWC_iterator)->cost < new_state_with_cost->cost ; SWC_iterator++)
+                ++i;
+
+            // add the new state just before the found one
+            if(i!=states.size())
+                states.insert(SWC_iterator, new_state_with_cost );
+            else
+                states.push_front(new_state_with_cost);
+
+            // entering each iteration, states should be arranged in ascending order
+
+
+        }
+
+    }
+
+    // reconstruct the victorious path
+    if (victory!=nullptr){
+        for(StateWithCost * node = victory; node->father!=nullptr; node=node->father)
+           return_vec.insert(return_vec.begin(), (node->action));
+    }
+
+
+clean_up:
+    for(StateWithCost * s: trash)
+        delete s;
+    for(StateWithCost * s: states)
+        delete s;
+    return return_vec;
 }
 
 
