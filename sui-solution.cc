@@ -7,7 +7,9 @@
 #include <stack>
 #include <list>
 #include "memusage.h"
-
+#include "card.h"
+#include "game.h"
+#include "card-storage.h"
 
 
 using namespace std; // FIXME possible - bad practice, but saves a lot of typing
@@ -20,7 +22,6 @@ struct StateWithCost{
     StateWithCost *father;
     const SearchAction action; // action that led to this state
 };
-
 
 
 // ----------------------------- MACROS --------------------------------------------------------------------------------
@@ -51,7 +52,7 @@ vector <SearchAction> reconstructPath(StatePointer init_state,
                                       StatePointer final_state,
                                       map <StatePointer, StatePointer> *sourceActionMap);
 
-
+vector<vector<Card>> get_workstacks(const GameState &state);
 
 // ----------------------------- STRUCTURES ----------------------------------------------------------------------------
 
@@ -237,9 +238,10 @@ std::vector <SearchAction> DepthFirstSearch::solve(const SearchState &init_state
 
 
 
+
+
 double StudentHeuristic::distanceLowerBound(const GameState &state) const {
-    // TODO
-    UNUSED(state), throw NotImplementedException();
+
 }
 
 std::string actions_to_str(std::vector<SearchAction> actions){
@@ -266,10 +268,10 @@ std::vector <SearchAction> AStarSearch::solve(const SearchState &init_state) {
     int i = 0;
     while(!states.empty()){
         //std::cout << getCurrentRSS() << " " << mem_limit_ << std::endl;
-        if (getCurrentRSS() > mem_limit_ - 2048) {
-            return std::vector<SearchAction>();
-        }
+        
+        
         // queue management
+        if (getCurrentRSS() > mem_limit_ - 2048) goto clean_up;
         if(i++>EXPAND_COUNT_LIMIT) goto clean_up;
         StateWithCost * father = states.front();
         states.pop_front();
@@ -349,6 +351,18 @@ clean_up:
 
 // ------------------------- HELPER FUNCTIONS IMPLEMENTATION -----------------------------------------------------------
 
+vector<vector<Card>> get_workstacks(const GameState &state){
+    vector<vector<Card>> result = {};
+    for(const auto &work_stack: state.stacks){
+        vector<Card> my_stack = {};
+        // load cards
+        for(auto card = work_stack.storage().begin(); card != work_stack.storage().end(); card++ ){
+            my_stack.push_back(*card);
+        }
+        result.push_back(my_stack);
+    }
+    return result;
+}
 vector <SearchAction> reconstructPath(StatePointer init_state,
                                       StatePointer final_state,
                                       map <StatePointer, StatePointer> *sourceActionMap) {
