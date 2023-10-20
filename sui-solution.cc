@@ -276,25 +276,28 @@ double StudentHeuristic::distanceLowerBound(const GameState &state) const {
  * @return vector of SearchActions that lead from the initial state to the final state
  */
 std::vector <SearchAction> AStarSearch::solve(const SearchState &init_state) {
-    // TODO
-    const int CYCLIC_CHECK_SIZE = 50000;
-    int EXPAND_COUNT_LIMIT = 10000;
-    long unsigned int QUEUE_LIMIT = 500;
+    // memory allocation strategy
+    int memory_multiplier = mem_limit_ / 500000;
+    long unsigned int cyclic_check_size = memory_multiplier > 1400 ? 1400 : memory_multiplier;
+    int expand_count_limit = 100000;
+    long unsigned int queue_limit = cyclic_check_size / 4;
 
+    // structures inicialization
     std::vector <SearchAction> return_vec{};
     std::list < StateWithCost * > states{(new StateWithCost{init_state, 0, nullptr, init_state.actions()[0]})};
     std::vector < StateWithCost * > trash{}; // setting popped states aside for clean up later
     StateWithCost *victory = nullptr;
     std::list <std::string> cyclic_check = {};
 
+    // main loop
     int i = 0;
     while (!states.empty()) {
         //std::cout << getCurrentRSS() << " " << mem_limit_ << std::endl;
 
 
         // queue management
-        if (getCurrentRSS() > mem_limit_ - 2048) goto clean_up;
-        if (i++ > EXPAND_COUNT_LIMIT) goto clean_up;
+        if (getCurrentRSS() > mem_limit_ - 204800) goto clean_up;
+        if (i++ > expand_count_limit) goto clean_up;
         StateWithCost *father = states.front();
         states.pop_front();
         trash.push_back(father);
@@ -314,7 +317,7 @@ std::vector <SearchAction> AStarSearch::solve(const SearchState &init_state) {
         if (do_continue) continue;
 
         cyclic_check.push_front(actions_str);
-        if (cyclic_check.size() > CYCLIC_CHECK_SIZE)
+        if (cyclic_check.size() > cyclic_check_size)
             cyclic_check.pop_back();
 
 
@@ -332,13 +335,13 @@ std::vector <SearchAction> AStarSearch::solve(const SearchState &init_state) {
             bool aborted = false;
             for (; i < states.size() && (*SWC_iterator)->cost < new_state_with_cost->cost; SWC_iterator++) {
                 ++i;
-                if (i > QUEUE_LIMIT) {
+                if (i > queue_limit) {
                     delete new_state_with_cost;
                     aborted = true;
                     break;
                 }
             }
-            if (states.size() > QUEUE_LIMIT) {
+            if (states.size() > queue_limit) {
                 delete states.back();
                 states.pop_back();
             }
