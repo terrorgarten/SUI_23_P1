@@ -331,23 +331,24 @@ std::vector <SearchAction> AStarSearch::solve(const SearchState &init_state) {
             // find the first state with a bigger cost than the new one
             std::list<StateWithCost *>::iterator SWC_iterator = states.begin();
             long unsigned int i = 0;
+            bool aborted = false;
             for (; i < states.size() && (*SWC_iterator)->cost < new_state_with_cost->cost; SWC_iterator++) {
                 ++i;
                 if (i > QUEUE_LIMIT) {
                     delete new_state_with_cost;
+                    aborted = true;
                     break;
                 }
             }
-
             if (states.size() > QUEUE_LIMIT) {
                 delete states.back();
                 states.pop_back();
             }
 
             // add the new state just before the found one 
-            if (i != states.size())
+            if (i != states.size() && !aborted)
                 states.insert(SWC_iterator, new_state_with_cost);
-            else
+            else if(!aborted)
                 states.push_front(new_state_with_cost);
 
             // entering each iteration, states should be arranged in ascending order 
