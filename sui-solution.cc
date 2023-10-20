@@ -25,17 +25,15 @@ using CardPointer = shared_ptr<Card>;
 // ignore unused variable warnings
 #define UNUSED(x) (void)(x)
 // debug mode
-#define DEBUG 1
+#define DEBUG 0
 // custom print macro for debug mode
 #define D_PRINT(x) if (DEBUG) std::cout << x << std::endl;
 // memory margin for BFS
 #define BFS_MEM_MARGIN 2048
 // memory margin for DFS
 #define DFS_MEM_MARGIN 2048
-// bad state multiplier for A* heuristic - defaults to 2
-#define BAD_STATE_MULTIPLIER 2
-// base score for Heineman heuristic
-#define HEINEMAN_BASE_SCORE 96 // ((13 cards - 1 selected card) * 4 colors) * 2 bad state multiplier = 96
+// bad state multiplier for A* heuristic - defaults to 2, but 5 and higher performs better
+#define BAD_STATE_MULTIPLIER 5
 
 
 
@@ -379,9 +377,6 @@ std::vector <SearchAction> AStarSearch::solve(const SearchState &init_state) {
 
 double heinemanHeuristic(const GameState &gameState) {
 
-    // load base (maximum) score
-    double score = HEINEMAN_BASE_SCORE;
-
     // prepare helper set of all colors
     std::unordered_set <Color> allColors = {Color::Heart, Color::Diamond, Color::Club, Color::Spade};
 
@@ -439,12 +434,10 @@ double heinemanHeuristic(const GameState &gameState) {
         penalisation_ctr = penalisation_ctr * BAD_STATE_MULTIPLIER;
     }
 
-    score -= penalisation_ctr;
-
-    D_PRINT("Heineman heuristic score=" << score << ", extra_badness=" << (free_cells_are_full || !homes_are_full) << " for state:" << endl)
+    D_PRINT("Heineman heuristic score=" << penalisation_ctr << ", extra_badness=" << (free_cells_are_full || !homes_are_full) << " for state:" << endl)
     D_PRINT(gameState)
 
-    return score;
+    return penalisation_ctr;
 }
 
 // ------------------------- HELPER FUNCTIONS IMPLEMENTATION -----------------------------------------------------------
