@@ -60,7 +60,8 @@ vector <vector<Card>> get_workstacks(const GameState &state);
 
 
 /**
- * @brief Heineman heuristic for FreeCell game.
+ * @brief Variation of Heineman heuristic for FreeCell game.
+ * @note Inspired by https://www.human-competitive.org/sites/default/files/elyasaf-hauptmann-sipper-paper.pdf
  * @param gameState state to evaluate
  * @return state score
  */
@@ -432,7 +433,7 @@ double heinemanHeuristic(const GameState &gameState) {
         }
     }
 
-    // if all freeCells are full or there is a free home, penalise the state by multiplying (default value is 2)
+    // if all freeCells are full or there is a free home, penalise the state by multiplying (default value is 2, we use 5)
     if (free_cells_are_full || !homes_are_full) {
         penalisation_ctr = penalisation_ctr * BAD_STATE_MULTIPLIER;
     }
