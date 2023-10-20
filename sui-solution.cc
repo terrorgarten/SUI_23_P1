@@ -6,22 +6,18 @@
 #include <algorithm>
 #include <stack>
 #include <list>
+#include <array>
 #include "memusage.h"
 #include "card.h"
 #include "game.h"
 #include "card-storage.h"
 
 
-using namespace std; // FIXME possible - bad practice, but saves a lot of typing
+using namespace std;
 // shared pointer to the SearchState object
 using StatePointer = shared_ptr<SearchState>;
+using CardPointer = shared_ptr<Card>;
 
-struct StateWithCost{
-    SearchState state;
-    int cost;
-    StateWithCost *father;
-    const SearchAction action; // action that led to this state
-};
 
 
 // ----------------------------- MACROS --------------------------------------------------------------------------------
@@ -33,9 +29,13 @@ struct StateWithCost{
 // custom print macro for debug mode
 #define D_PRINT(x) if (DEBUG) std::cout << x << std::endl;
 // memory margin for BFS
-#define BFS_MEM_MARGIN 50000000
+#define BFS_MEM_MARGIN 2048
 // memory margin for DFS
-#define DFS_MEM_MARGIN 50000000
+#define DFS_MEM_MARGIN 2048
+// bad state multiplier for A* heuristic - defaults to 2
+#define BAD_STATE_MULTIPLIER 2
+// base score for Heineman heuristic
+#define HEINEMAN_BASE_SCORE 96 // ((13 cards - 1 selected card) * 4 colors) * 2 bad state multiplier = 96
 
 
 
@@ -52,7 +52,30 @@ vector <SearchAction> reconstructPath(StatePointer init_state,
                                       StatePointer final_state,
                                       map <StatePointer, StatePointer> *sourceActionMap);
 
-vector<vector<Card>> get_workstacks(const GameState &state);
+/**
+ * @brief Get the work stacks (columns) from the GameState object.
+ * @param state state to parse
+ * @return vector of stacks of cards
+ */
+vector <vector<Card>> get_workstacks(const GameState &state);
+
+
+
+/**
+ * @brief Heineman heuristic for FreeCell game.
+ * @param gameState state to evaluate
+ * @return state score
+ */
+double heinemanHeuristic(const GameState &gameState);
+
+
+/**
+ * @brief Convert vector of actions to string.
+ * @param actions vector of actions
+ * @return string of actions
+ */
+std::string actions_to_str(std::vector <SearchAction> actions);
+
 
 // ----------------------------- STRUCTURES ----------------------------------------------------------------------------
 
@@ -67,6 +90,21 @@ struct DLSState {
     DLSState(StatePointer state, StatePointer parent, int depth) :
             state(state), parent(parent), depth(depth) {}
 };
+
+
+/**
+ * @brief Structure used in A* implementation.
+ */
+struct StateWithCost {
+    SearchState state;
+    int cost;
+    StateWithCost *father;
+    const SearchAction action; // action that led to this state
+
+    StateWithCost(SearchState state, int cost, StateWithCost *father, SearchAction action) :
+            state(state), cost(cost), father(father), action(action) {}
+};
+
 
 
 // ----------------------------- OPERATORS -----------------------------------------------------------------------------
@@ -97,19 +135,6 @@ bool operator==(const StatePointer &lhs, const StatePointer &rhs) {
     }
     return *lhs == *rhs;  // Compare the dereference values
 }
-
-
-
-// ----------------------------- EXCEPTIONS ----------------------------------------------------------------------------
-
-/**
- * @brief Not implemented exception for missing implementations of search strategies.
- */
-class NotImplementedException : public std::logic_error {
-public:
-    NotImplementedException() : std::logic_error("Not implemented yet!") {}
-};
-
 
 
 
@@ -237,22 +262,21 @@ std::vector <SearchAction> DepthFirstSearch::solve(const SearchState &init_state
 }
 
 
-
-
-
+/**
+ * @brief A* heuristic for FreeCell game.
+ * @param state evaluated state
+ * @return score for the state - how close it could be to the solution
+ */
 double StudentHeuristic::distanceLowerBound(const GameState &state) const {
-
+    return heinemanHeuristic(state);
 }
 
-std::string actions_to_str(std::vector<SearchAction> actions){
-    std::string return_val = "";
 
-    for(SearchAction action: actions){
-       return_val = return_val + std::to_string(action.to().id) +  std::to_string(action.from().id);
-    }
-    return return_val;
-}
-
+/**
+ * @brief A* search for FreeCell game.
+ * @param init_state starting state
+ * @return vector of SearchActions that lead from the initial state to the final state
+ */
 std::vector <SearchAction> AStarSearch::solve(const SearchState &init_state) {
     // TODO
     const int CYCLIC_CHECK_SIZE = 50000;
@@ -260,20 +284,20 @@ std::vector <SearchAction> AStarSearch::solve(const SearchState &init_state) {
     long unsigned int QUEUE_LIMIT = 500;
 
     std::vector <SearchAction> return_vec{};
-    std::list<StateWithCost *> states {(new StateWithCost {init_state, 0, nullptr, init_state.actions()[0]})};
-    std::vector<StateWithCost *> trash{}; // setting popped states aside for clean up later
-    StateWithCost * victory = nullptr;
-    std::list<std::string> cyclic_check = {};
+    std::list < StateWithCost * > states{(new StateWithCost{init_state, 0, nullptr, init_state.actions()[0]})};
+    std::vector < StateWithCost * > trash{}; // setting popped states aside for clean up later
+    StateWithCost *victory = nullptr;
+    std::list <std::string> cyclic_check = {};
 
     int i = 0;
-    while(!states.empty()){
+    while (!states.empty()) {
         //std::cout << getCurrentRSS() << " " << mem_limit_ << std::endl;
-        
-        
+
+
         // queue management
         if (getCurrentRSS() > mem_limit_ - 2048) goto clean_up;
-        if(i++>EXPAND_COUNT_LIMIT) goto clean_up;
-        StateWithCost * father = states.front();
+        if (i++ > EXPAND_COUNT_LIMIT) goto clean_up;
+        StateWithCost *father = states.front();
         states.pop_front();
         trash.push_back(father);
         if (father->state.isFinal()) {
@@ -285,84 +309,159 @@ std::vector <SearchAction> AStarSearch::solve(const SearchState &init_state) {
         std::string actions_str = actions_to_str(actions);
         bool do_continue = 0;
         for (auto cyclic_test: cyclic_check)
-            if(actions_str.compare(cyclic_test) == 0){ 
+            if (actions_str.compare(cyclic_test) == 0) {
                 do_continue = 1;
                 break;
             }
-        if(do_continue) continue;
-        
+        if (do_continue) continue;
+
         cyclic_check.push_front(actions_str);
-        if(cyclic_check.size()>CYCLIC_CHECK_SIZE)
+        if (cyclic_check.size() > CYCLIC_CHECK_SIZE)
             cyclic_check.pop_back();
 
 
 
         // expand
         for (const SearchAction &action: actions) {
-            
-            StateWithCost * new_state_with_cost = new StateWithCost{action.execute(father->state), 1, father, action};
-            new_state_with_cost->cost = compute_heuristic(new_state_with_cost->state, *heuristic_);
-            
-            
+
+            StateWithCost *new_state_with_cost = new StateWithCost{action.execute(father->state), 1, father, action};
+            new_state_with_cost->cost = compute_heuristic(new_state_with_cost->state, *heuristic_); // TODO tady dát pointer na heinemanHeuristic
+
+
             // find the first state with a bigger cost than the new one
             std::list<StateWithCost *>::iterator SWC_iterator = states.begin();
             long unsigned int i = 0;
-            for (;i<states.size() && (*SWC_iterator)->cost < new_state_with_cost->cost ; SWC_iterator++){
+            for (; i < states.size() && (*SWC_iterator)->cost < new_state_with_cost->cost; SWC_iterator++) {
                 ++i;
-                if(i > QUEUE_LIMIT){
+                if (i > QUEUE_LIMIT) {
                     delete new_state_with_cost;
                     break;
                 }
             }
 
-            if(states.size() > QUEUE_LIMIT){
+            if (states.size() > QUEUE_LIMIT) {
                 delete states.back();
                 states.pop_back();
             }
 
             // add the new state just before the found one 
-            if(i!=states.size())
-                states.insert(SWC_iterator, new_state_with_cost );
+            if (i != states.size())
+                states.insert(SWC_iterator, new_state_with_cost);
             else
                 states.push_front(new_state_with_cost);
-            
+
             // entering each iteration, states should be arranged in ascending order 
-            
-            
+
+
         }
 
     }
 
     // reconstruct the victorious path
-    if (victory!=nullptr){
-        for(StateWithCost * node = victory; node->father!=nullptr; node=node->father)
-           return_vec.insert(return_vec.begin(), (node->action)); 
+    if (victory != nullptr) {
+        for (StateWithCost *node = victory; node->father != nullptr; node = node->father)
+            return_vec.insert(return_vec.begin(), (node->action));
     }
 
 
-clean_up:
-    for(StateWithCost * s: trash)
+    clean_up:
+    for (StateWithCost *s: trash)
         delete s;
-    for(StateWithCost * s: states)
+    for (StateWithCost *s: states)
         delete s;
     return return_vec;
 }
 
 
+
+// ------------------------- HEURISTICS IMPLEMENTATION -----------------------------------------------------------------
+
+double heinemanHeuristic(const GameState &gameState) {
+
+    // load base (maximum) score
+    double score = HEINEMAN_BASE_SCORE;
+
+    // prepare helper set of all colors
+    std::unordered_set <Color> allColors = {Color::Heart, Color::Diamond, Color::Club, Color::Spade};
+
+    // prepare helper map of next home top cards. This holds the info about the next card that should be on top of the home of given color.
+    map<Color, int> nextHomeTopCardMap;
+    // this loop adds the top cards of the homes to the map and removes their colors from the set (so that we know which colors are missing)
+    for (int i = 0; i < nb_homes; i++) {
+        auto opt_top = gameState.homes[i].topCard();
+        if (opt_top.has_value()) {
+            nextHomeTopCardMap[opt_top.value().color] = (opt_top.value().value == 13) ? opt_top.value().value :
+                                                        opt_top.value().value + 1;
+            allColors.erase(opt_top.value().color);
+        }
+    }
+
+    // if there are any colors left in the set, add them to the map with value 1 - ace. This means that the home was empty.
+    for (auto color: allColors) {
+        nextHomeTopCardMap[color] = 1;
+    }
+
+    // load work stacks
+    vector <vector<Card>> work_stacks = get_workstacks(gameState);
+
+    // calculate penalisation - count cards on top of the target cards in the working stacks
+    int penalisation_ctr = 0;
+    for (size_t i = 0; i < nb_stacks; i++) {
+        for (size_t j = 0; j < work_stacks[i].size(); j++) {
+            if (work_stacks[i][j].value == nextHomeTopCardMap[work_stacks[i][j].color]) {
+                penalisation_ctr += work_stacks[i].size() - j - 1; // - 1 for index offset
+            }
+        }
+    }
+
+    // check if all the freeCells are occupied
+    bool free_cells_are_full = true;
+    for (auto i = 0; i < nb_freecells; i++) {
+        if (!gameState.free_cells[i].topCard().has_value()) {
+            free_cells_are_full = false;
+            break;
+        }
+    }
+
+    // check if all the homes are full
+    bool homes_are_full = true;
+    for (auto i = 0; i < nb_homes; i++) {
+        // if any of the homes is empty, the homes can't be full
+        if (!gameState.homes[i].topCard().has_value()) {
+            homes_are_full = false;
+            break;
+        }
+    }
+
+    // if all freeCells are full or there is a free home, penalise the state by multiplying (default value is 2)
+    if (free_cells_are_full || !homes_are_full) {
+        penalisation_ctr = penalisation_ctr * BAD_STATE_MULTIPLIER;
+    }
+
+    score -= penalisation_ctr;
+
+    D_PRINT("Heineman heuristic score=" << score << ", extra_badness=" << (free_cells_are_full || !homes_are_full) << " for state:" << endl)
+    D_PRINT(gameState)
+
+    return score;
+}
+
 // ------------------------- HELPER FUNCTIONS IMPLEMENTATION -----------------------------------------------------------
 
-vector<vector<Card>> get_workstacks(const GameState &state){
-    vector<vector<Card>> result = {};
-    for(const auto &work_stack: state.stacks){
-        vector<Card> my_stack = {};
+vector <vector<Card>> get_workstacks(const GameState &state) {
+    vector <vector<Card>> result = {};
+    for (const auto &work_stack: state.stacks) {
+        vector <Card> my_stack = {};
         // load cards
-        for(auto card = work_stack.storage().begin(); card != work_stack.storage().end(); card++ ){
+        for (auto card = work_stack.storage().begin(); card != work_stack.storage().end(); card++) {
             my_stack.push_back(*card);
         }
         result.push_back(my_stack);
     }
     return result;
 }
+
+
 vector <SearchAction> reconstructPath(StatePointer init_state,
                                       StatePointer final_state,
                                       map <StatePointer, StatePointer> *sourceActionMap) {
@@ -396,4 +495,14 @@ vector <SearchAction> reconstructPath(StatePointer init_state,
     // reverse the path, so it leads from the initial state to the final state and not the other way around, then return it.
     reverse(path.begin(), path.end());
     return path;
+}
+
+
+std::string actions_to_str(std::vector <SearchAction> actions) {
+    std::string return_val = "";
+
+    for (SearchAction action: actions) {
+        return_val = return_val + std::to_string(action.to().id) + std::to_string(action.from().id);
+    }
+    return return_val;
 }
