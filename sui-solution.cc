@@ -225,7 +225,7 @@ std::vector <SearchAction> DepthFirstSearch::solve(const SearchState &init_state
     while (!stack.empty()) {
         // get the next state, add it to mapping and pop it from the stack
         // check for available memory with every iteration. If the limit is reached, abort the search.
-        if (getCurrentRSS() > mem_limit_ - BFS_MEM_MARGIN) {
+        if (getCurrentRSS() > mem_limit_ - DFS_MEM_MARGIN) {
             D_PRINT("BFS: Memory limit reached, aborting search!")
             return vector<SearchAction>();
         }
@@ -240,7 +240,7 @@ std::vector <SearchAction> DepthFirstSearch::solve(const SearchState &init_state
             // create new states from the current state's actions and push them to stack, unless they're final.
             for (const SearchAction action: current_dls_state->state->actions()) {
                 // check for available memory with every iteration. If the limit is reached, abort the search.
-                if (getCurrentRSS() > mem_limit_ - BFS_MEM_MARGIN) {
+                if (getCurrentRSS() > mem_limit_ - DFS_MEM_MARGIN) {
                     D_PRINT("BFS: Memory limit reached, aborting search!")
                     return vector<SearchAction>();
                 }
