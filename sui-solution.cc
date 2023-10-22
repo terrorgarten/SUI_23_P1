@@ -29,9 +29,9 @@ using CardPointer = shared_ptr<Card>;
 // custom print macro for debug mode
 #define D_PRINT(x) if (DEBUG) std::cout << x << std::endl;
 // memory margin for BFS
-#define BFS_MEM_MARGIN 2048
+#define BFS_MEM_MARGIN 204800
 // memory margin for DFS
-#define DFS_MEM_MARGIN 2048
+#define DFS_MEM_MARGIN 204800
 // bad state multiplier for A* heuristic - defaults to 2, but 5 and higher performs better
 #define BAD_STATE_MULTIPLIER 5
 
@@ -164,14 +164,22 @@ std::vector <SearchAction> BreadthFirstSearch::solve(const SearchState &init_sta
     visited.insert(init_state_shared_ptr);
 
     while (!queue.empty()) {
-
+        // check for available memory with every iteration. If the limit is reached, abort the search.
+        if (getCurrentRSS() > mem_limit_ - BFS_MEM_MARGIN) {
+            D_PRINT("BFS: Memory limit reached, aborting search!")
+            return vector<SearchAction>();
+        }
         // get the next state
         current_state = queue.front();
         queue.pop();
 
         // cycle through its actions
         for (const SearchAction action: current_state->actions()) {
-
+            // check for available memory with every iteration. If the limit is reached, abort the search.
+            if (getCurrentRSS() > mem_limit_ - BFS_MEM_MARGIN) {
+                D_PRINT("BFS: Memory limit reached, aborting search!")
+                return vector<SearchAction>();
+            }
             // execute the action and create a new state
             StatePointer new_state = make_shared<SearchState>(action.execute(*current_state));
 
@@ -187,12 +195,6 @@ std::vector <SearchAction> BreadthFirstSearch::solve(const SearchState &init_sta
                 sourceActionMap[new_state] = current_state;
                 queue.push(new_state);
             }
-        }
-
-        // check for available memory with every iteration. If the limit is reached, abort the search.
-        if (getCurrentRSS() > mem_limit_ - BFS_MEM_MARGIN) {
-            D_PRINT("BFS: Memory limit reached, aborting search!")
-            return vector<SearchAction>();
         }
     }
 
@@ -222,16 +224,26 @@ std::vector <SearchAction> DepthFirstSearch::solve(const SearchState &init_state
 
     while (!stack.empty()) {
         // get the next state, add it to mapping and pop it from the stack
+        // check for available memory with every iteration. If the limit is reached, abort the search.
+        if (getCurrentRSS() > mem_limit_ - BFS_MEM_MARGIN) {
+            D_PRINT("BFS: Memory limit reached, aborting search!")
+            return vector<SearchAction>();
+        }
         current_dls_state = stack.top();
         sourceActionMap[current_dls_state->state] = current_dls_state->parent;
         stack.pop();
 
         // check depth limit with each iteration
-        if (current_dls_state->depth > depth_limit_) {
+        if (current_dls_state->depth >= depth_limit_) {
             continue;
         } else {
             // create new states from the current state's actions and push them to stack, unless they're final.
             for (const SearchAction action: current_dls_state->state->actions()) {
+                // check for available memory with every iteration. If the limit is reached, abort the search.
+                if (getCurrentRSS() > mem_limit_ - BFS_MEM_MARGIN) {
+                    D_PRINT("BFS: Memory limit reached, aborting search!")
+                    return vector<SearchAction>();
+                }
 
                 StatePointer new_state = make_shared<SearchState>(action.execute(*current_dls_state->state));
 
@@ -277,28 +289,25 @@ double StudentHeuristic::distanceLowerBound(const GameState &state) const {
  * @return vector of SearchActions that lead from the initial state to the final state
  */
 std::vector <SearchAction> AStarSearch::solve(const SearchState &init_state) {
-    // memory allocation strategy
-    int memory_multiplier = mem_limit_ / 500000;
-    long unsigned int cyclic_check_size = memory_multiplier > 1400 ? 1400 : memory_multiplier;
-    int expand_count_limit = 100000;
-    long unsigned int queue_limit = cyclic_check_size / 4;
+    // TODO
+    const int CYCLIC_CHECK_SIZE = 50000;
+    int EXPAND_COUNT_LIMIT = 10000;
+    long unsigned int QUEUE_LIMIT = 500;
 
-    // structures inicialization
     std::vector <SearchAction> return_vec{};
     std::list < StateWithCost * > states{(new StateWithCost{init_state, 0, nullptr, init_state.actions()[0]})};
     std::vector < StateWithCost * > trash{}; // setting popped states aside for clean up later
     StateWithCost *victory = nullptr;
     std::list <std::string> cyclic_check = {};
 
-    // main loop
     int i = 0;
     while (!states.empty()) {
         //std::cout << getCurrentRSS() << " " << mem_limit_ << std::endl;
 
 
         // queue management
-        if (getCurrentRSS() > mem_limit_ - 204800) goto clean_up;
-        if (i++ > expand_count_limit) goto clean_up;
+        if (getCurrentRSS() > mem_limit_ - 2048) goto clean_up;
+        if (i++ > EXPAND_COUNT_LIMIT) goto clean_up;
         StateWithCost *father = states.front();
         states.pop_front();
         trash.push_back(father);
@@ -318,7 +327,7 @@ std::vector <SearchAction> AStarSearch::solve(const SearchState &init_state) {
         if (do_continue) continue;
 
         cyclic_check.push_front(actions_str);
-        if (cyclic_check.size() > cyclic_check_size)
+        if (cyclic_check.size() > CYCLIC_CHECK_SIZE)
             cyclic_check.pop_back();
 
 
@@ -336,13 +345,13 @@ std::vector <SearchAction> AStarSearch::solve(const SearchState &init_state) {
             bool aborted = false;
             for (; i < states.size() && (*SWC_iterator)->cost < new_state_with_cost->cost; SWC_iterator++) {
                 ++i;
-                if (i > queue_limit) {
+                if (i > QUEUE_LIMIT) {
                     delete new_state_with_cost;
                     aborted = true;
                     break;
                 }
             }
-            if (states.size() > queue_limit) {
+            if (states.size() > QUEUE_LIMIT) {
                 delete states.back();
                 states.pop_back();
             }
